@@ -134,7 +134,13 @@ uint8_t HandleWirelessHEXData(RFM69& radio, uint16_t remoteID, SPIFlash& flash, 
 
   //first clear the fist 32k block (dedicated to a new FLASH image)
   flash.blockErase32K(0);
-  flash.writeBytes(0,"FLXIMG:", 7);
+  flash.writeByte(0, 'F');
+  flash.writeByte(1, 'L');
+  flash.writeByte(2, 'X');
+  flash.writeByte(3, 'I');
+  flash.writeByte(4, 'M');
+  flash.writeByte(5, 'G');
+  flash.writeByte(6, ':');
 #if defined (MOTEINO_M0)
   flash.writeByte(10,':');
   uint32_t bytesFlashed=11;
@@ -247,6 +253,13 @@ uint8_t HandleWirelessHEXData(RFM69& radio, uint16_t remoteID, SPIFlash& flash, 
             flash.writeByte(7,(bytesFlashed-10)>>8);
             flash.writeByte(8,(bytesFlashed-10));
             //flash.writeByte(9,':'); //already done
+            if (DEBUG) {
+                Serial.print("Full image: ");
+                for(uint32_t i = 0; i < bytesFlashed; i++) {
+                    Serial.print(flash.readByte(i));
+                    Serial.print(" ");
+                }
+            }
 #endif
             return true;
           }

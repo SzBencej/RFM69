@@ -47,7 +47,7 @@
   #define LED           13 // catch all others (UNO, pro mini etc)
 #endif
 
-#define SHIFTCHANNEL 1000000 //amount to shift frequency of HEX transmission to keep original channel free of the HEX transmission traffic
+//#define SHIFTCHANNEL 1000000 //amount to shift frequency of HEX transmission to keep original channel free of the HEX transmission traffic
 
 #ifndef DEFAULT_TIMEOUT
   #define DEFAULT_TIMEOUT 3000
