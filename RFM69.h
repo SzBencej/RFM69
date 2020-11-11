@@ -25,8 +25,13 @@
 // **********************************************************************************
 #ifndef RFM69_h
 #define RFM69_h
-#include <Arduino.h>            // assumes Arduino IDE v1.0 or greater
-#include <SPI.h>
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <wiringPiSPI.h>
+#include <wiringPi.h>
 
 //////////////////////////////////////////////////////////////////////
 //Platform and digitalPinToInterrupt definitions credit to RadioHead//
@@ -118,7 +123,7 @@
 #endif
 ////////////////////////////////////////////////////
 
-#define RF69_SPI_CS             SS // SS is the SPI slave select pin, for instance D10 on ATmega328
+#define RF69_SPI_CS             26 // SS is the SPI slave select pin, for instance D10 on ATmega328
 
 // INT0 on AVRs should be connected to RFM69's DIO0 (ex on ATmega328 it's D2, on ATmega644/1284 it's D2)
 #if defined(__AVR_ATmega168__) || defined(__AVR_ATmega328P__) || defined(__AVR_ATmega88) || defined(__AVR_ATmega8__) || defined(__AVR_ATmega88__)
@@ -127,9 +132,8 @@
   #define RF69_IRQ_PIN          2
 #elif defined(__AVR_ATmega32U4__)
   #define RF69_IRQ_PIN          7
-#elif defined(__STM32F1__) || defined(STM32F1)
+#elif defined(__STM32F1__)
   #define RF69_IRQ_PIN          PA3
-  #define RF69_ATTACHINTERRUPT_TAKES_PIN_NUMBER
 #elif defined(MOTEINO_M0)
   #define RF69_IRQ_PIN          9
 #elif defined(__SAMD51__)
@@ -185,6 +189,34 @@
   #define  DEFAULT_LISTEN_IDLE_US 1000000
 #endif
 
+// Raspberry reset pin
+#define RSTPIN 29;
+#define HEX 16
+#define BIN 2
+
+class SPIClass {
+  public:
+    static void begin(uint8_t SCK, uint8_t MISO, uint8_t MOSI, uint8_t CS) {};
+    static void begin() {};
+    static unsigned char transfer(unsigned char c) {wiringPiSPIDataRW(1, &c, 1);};
+    static void setDataMode(uint8_t m) {};
+};
+
+
+
+class SerialClass {
+  public:
+    static void println() {printf("\n");};
+    static void print(uint8_t x, uint8_t mod = 0) {printf("%i", x);};
+    static void println(uint8_t x, uint8_t mod = 0) {printf("%i\n", x);};
+    static void print(const char* x, uint8_t mod = 0) {printf("%s", x);};
+    static void println(const char* x, uint8_t mod = 0) {printf("%s\n", x);};
+    static void setTimeout(int) {};
+    static int readBytesUntil(char, const char*,int) {return 0;}
+};
+
+static SerialClass Serial;
+
 class RFM69 {
   public:
     static uint8_t DATA[RF69_MAX_DATA_LEN+1]; // RX/TX payload buffer, including end of string NULL char
@@ -216,7 +248,6 @@ class RFM69 {
     void setFrequency(uint32_t freqHz);
     void encrypt(const char* key);
     void setCS(uint8_t newSPISlaveSelect);
-    bool setIrq(uint8_t newIRQPin);
     int16_t readRSSI(bool forceTrigger=false); // *current* signal strength indicator; e.g. < -90dBm says the frequency channel is free + ready to transmit
     void spyMode(bool onOff=true);
     //void promiscuous(bool onOff=true); //replaced with spyMode()

@@ -35,7 +35,6 @@
 #define RFM69_OTA_H
 
 #include "RFM69.h"
-#include <SPIFlash.h>
 
 #if defined(MOTEINO_M0)
   #define LED           13 // Moteino M0
@@ -47,7 +46,7 @@
   #define LED           13 // catch all others (UNO, pro mini etc)
 #endif
 
-#define SHIFTCHANNEL 1000000 //amount to shift frequency of HEX transmission to keep original channel free of the HEX transmission traffic
+//#define SHIFTCHANNEL 1000000 //amount to shift frequency of HEX transmission to keep original channel free of the HEX transmission traffic
 
 #ifndef DEFAULT_TIMEOUT
   #define DEFAULT_TIMEOUT 3000
@@ -56,6 +55,18 @@
 #ifndef ACK_TIMEOUT
   #define ACK_TIMEOUT 20
 #endif
+
+#define F(X) X
+
+class SPIFlash {
+    public:
+        void wakeup() {};
+        void blockErase32K(int) {}
+        void writeBytes(int,const char*, int) {}
+        void writeByte(int, char) {}
+        uint16_t readDeviceId() { return 0; }
+    
+};
 
 //functions used in the REMOTE node
 void CheckForWirelessHEX(RFM69& radio, SPIFlash& flash, uint8_t DEBUG=false, uint8_t LEDpin=LED);
@@ -68,9 +79,9 @@ uint8_t HandleWirelessHEXDataWrapper(RFM69& radio, uint16_t remoteID, SPIFlash& 
 #endif
 
 //functions used in the MAIN node
-uint8_t CheckForSerialHEX(uint8_t* input, uint8_t inputLen, RFM69& radio, uint16_t targetID, uint16_t TIMEOUT=DEFAULT_TIMEOUT, uint16_t ACKTIMEOUT=ACK_TIMEOUT, uint8_t DEBUG=false);
+uint8_t CheckForSerialHEX(const char* input, uint8_t inputLen, RFM69& radio, uint16_t targetID, uint16_t TIMEOUT=DEFAULT_TIMEOUT, uint16_t ACKTIMEOUT=ACK_TIMEOUT, uint8_t DEBUG=false, uint8_t retries=5);
 uint8_t HandleSerialHandshake(RFM69& radio, uint16_t targetID, uint8_t isEOF, uint16_t TIMEOUT=DEFAULT_TIMEOUT, uint16_t ACKTIMEOUT=ACK_TIMEOUT, uint8_t DEBUG=false);
-uint8_t HandleSerialHEXData(RFM69& radio, uint16_t targetID, uint16_t TIMEOUT=DEFAULT_TIMEOUT, uint16_t ACKTIMEOUT=ACK_TIMEOUT, uint8_t DEBUG=false);
+uint8_t HandleSerialHEXData(RFM69& radio, const char* image, uint16_t targetID, uint16_t TIMEOUT=DEFAULT_TIMEOUT, uint16_t ACKTIMEOUT=ACK_TIMEOUT, uint8_t DEBUG=false, uint8_t retries = 5);
 #ifdef SHIFTCHANNEL
 uint8_t HandleSerialHEXDataWrapper(RFM69& radio, uint16_t targetID, uint16_t TIMEOUT=DEFAULT_TIMEOUT, uint16_t ACKTIMEOUT=ACK_TIMEOUT, uint8_t DEBUG=false);
 #endif

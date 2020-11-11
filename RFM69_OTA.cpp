@@ -32,6 +32,10 @@
 // **********************************************************************************
 #include "RFM69_OTA.h"
 #include "RFM69registers.h"
+#include <vector>
+#include <iostream>
+#include <string>
+#include <sstream>
 
 #ifdef __AVR__
   #include <avr/wdt.h>
@@ -285,9 +289,10 @@ uint8_t readSerialLine(char* input, char endOfLineChar, uint8_t maxLength, uint1
 // CheckForSerialHEX() - returns TRUE if a HEX file transmission was detected and it was actually transmitted successfully
 // this is called at the OTA programmer side
 //===================================================================================================================
-uint8_t CheckForSerialHEX(uint8_t* input, uint8_t inputLen, RFM69& radio, uint16_t targetID, uint16_t TIMEOUT, uint16_t ACKTIMEOUT, uint8_t DEBUG)
+uint8_t CheckForSerialHEX(const char* input, uint8_t inputLen, RFM69& radio, uint16_t targetID, uint16_t TIMEOUT, uint16_t ACKTIMEOUT, uint8_t DEBUG, uint8_t retries)
 {
-  if (inputLen == 4 && input[0]=='F' && input[1]=='L' && input[2]=='X' && input[3]=='?') {
+  //if (inputLen == 4 && input[0]=='F' && input[1]=='L' && input[2]=='X' && input[3]=='?') {
+  if (true) {
     if (HandleSerialHandshake(radio, targetID, false, TIMEOUT, ACKTIMEOUT, DEBUG))
     {
       if (radio.DATALEN >= 7 && radio.DATA[4] == 'N')
@@ -300,7 +305,7 @@ uint8_t CheckForSerialHEX(uint8_t* input, uint8_t inputLen, RFM69& radio, uint16
 #ifdef SHIFTCHANNEL
       if (HandleSerialHEXDataWrapper(radio, targetID, TIMEOUT, ACKTIMEOUT, DEBUG))
 #else
-      if (HandleSerialHEXData(radio, targetID, TIMEOUT, ACKTIMEOUT, DEBUG))
+      if (HandleSerialHEXData(radio, input, targetID, TIMEOUT, ACKTIMEOUT, DEBUG, retries))
 #endif
       {
         Serial.println(F("FLX?OK")); //signal EOF serial handshake back to host script
@@ -352,16 +357,27 @@ uint8_t HandleSerialHEXDataWrapper(RFM69& radio, uint16_t targetID, uint16_t TIM
 // HandleSerialHEXData() - handles the transmission of the HEX image from the serial port to the node being OTA programmed
 // this is called at the OTA programmer side
 //===================================================================================================================
-uint8_t HandleSerialHEXData(RFM69& radio, uint16_t targetID, uint16_t TIMEOUT, uint16_t ACKTIMEOUT, uint8_t DEBUG) {
+uint8_t HandleSerialHEXData(RFM69& radio, const char* image, uint16_t targetID, uint16_t TIMEOUT, uint16_t ACKTIMEOUT, uint8_t DEBUG, uint8_t retries) {
   long now=millis();
   uint16_t seq=0, tmp=0, inputLen;
   uint16_t remoteID = radio.SENDERID; //save the remoteID as soon as possible
   uint8_t sendBuf[57];
-  char input[115];
+  //char input[115];
   //a FLASH record should not be more than 64 bytes: FLX:9999:10042000FF4FA591B4912FB7F894662321F48C91D6 
 
+  std::vector<std::string> tokens;
+  std::string s;
+  std::string myText(image);
+  std::istringstream iss(myText);
+  std::string token;
+  while (std::getline(iss, token, '\n'))
+  {
+    std::cout << token << std::endl;
+    tokens.push_back(token);
+  }
   while(1) {
-    inputLen = readSerialLine(input);
+    char* input = const_cast<char*>(tokens[seq].c_str());
+    inputLen = strlen(input);
     if (inputLen == 0) goto timeoutcheck;
     tmp = 0;
     
@@ -403,7 +419,13 @@ uint8_t HandleSerialHEXData(RFM69& radio, uint16_t targetID, uint16_t TIMEOUT, u
                 Serial.println((char*)sendBuf); //response to host
                 seq++;
               }
-              else return false;
+              else if (retries > 0) {
+                retries--;
+                printf("No ack for seq %i. Remaining retries: %i", seq, retries);
+                continue;
+              } else {
+                  return false;
+              }
             }
           }
           //else Serial.print(F("FLX:INV"));
