@@ -190,7 +190,7 @@
 #endif
 
 // Raspberry reset pin
-#define RSTPIN 29;
+#define RSTPIN 29
 #define HEX 16
 #define BIN 2
 
@@ -198,7 +198,7 @@ class SPIClass {
   public:
     static void begin(uint8_t SCK, uint8_t MISO, uint8_t MOSI, uint8_t CS) {};
     static void begin() {};
-    static unsigned char transfer(unsigned char c) {wiringPiSPIDataRW(1, &c, 1);};
+    static unsigned char transfer(unsigned char c) {wiringPiSPIDataRW(1, &c, 1); return c; };
     static void setDataMode(uint8_t m) {};
 };
 
