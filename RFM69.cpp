@@ -114,17 +114,17 @@ bool RFM69::initialize(uint8_t freqBand, uint16_t nodeID, uint8_t networkID)
   };
   
   wiringPiSetupPhys();
+  int x = gpioInitialise();
+  printf("gpioinit %i", x);
   pinMode(_interruptPin, INPUT);
   pinMode(RSTPIN, OUTPUT);
   digitalWrite(RSTPIN, HIGH);
   delay(100);
   digitalWrite(RSTPIN, LOW);
   delay(100);
-  wiringPiSPISetupMode(1, 1000000, 0);
 
-
- // pinMode(_slaveSelectPin, OUTPUT);
-//  digitalWrite(_slaveSelectPin, HIGH);
+  pinMode(_slaveSelectPin, OUTPUT);
+  digitalWrite(_slaveSelectPin, HIGH);
 /*   if(_spi == nullptr){
     _spi = &SPI;
   } */
@@ -158,7 +158,7 @@ bool RFM69::initialize(uint8_t freqBand, uint16_t nodeID, uint8_t networkID)
   if (millis()-start >= timeout)
     return false;
   wiringPiISR(_interruptPin, INT_EDGE_RISING, RFM69::isr0);
-
+printf("gpioinit %i", x);
   _address = nodeID;
 #if defined(RF69_LISTENMODE_ENABLE)
   selfPointer = this;
@@ -345,17 +345,17 @@ void RFM69::sendFrame(uint16_t toAddress, const void* buffer, uint8_t bufferSize
   if (_address > 0xFF) CTLbyte |= (_address & 0x300) >> 8;   //assign last 2 bits of address if > 255
 
   // write to FIFO
-    unsigned char data[bufferSize+5];
-    data[0] = REG_FIFO | 0x80;
-    data[1] = bufferSize + 3;
-    data[2] = (unsigned char)toAddress;
-    data[3] = (unsigned char)_address;
-    data[4] = CTLbyte;
-    for (unsigned char i = 0; i < bufferSize; i++)
-    {
-        data[5+i] = ((unsigned char*) buffer)[i];
-    }
-    wiringPiSPIDataRW(1, data, bufferSize+5);
+  select();
+  _spi->transfer(REG_FIFO | 0x80);
+  _spi->transfer(bufferSize + 3);
+  _spi->transfer((uint8_t)toAddress);
+  _spi->transfer((uint8_t)_address);
+  _spi->transfer(CTLbyte);
+
+  for (uint8_t i = 0; i < bufferSize; i++)
+    _spi->transfer(((uint8_t*) buffer)[i]);
+  unselect();
+
 
 
 
@@ -371,22 +371,27 @@ void RFM69::sendFrame(uint16_t toAddress, const void* buffer, uint8_t bufferSize
 void RFM69::interruptHandler() {
   if (_mode == RF69_MODE_RX && (readReg(REG_IRQFLAGS2) & RF_IRQFLAGS2_PAYLOADREADY))
   {
+      // printf("interrupt");
     setMode(RF69_MODE_STANDBY);
-    PAYLOADLEN =readReg(REG_FIFO & 0x7F);
+    select();
+    _spi->transfer(REG_FIFO & 0x7F);
+    PAYLOADLEN = _spi->transfer(0);
     PAYLOADLEN = PAYLOADLEN > 66 ? 66 : PAYLOADLEN; // precaution
-    unsigned char data[PAYLOADLEN+1];
-    data[0]=REG_FIFO & 0x7F;
-    wiringPiSPIDataRW(1, data, PAYLOADLEN+1);
-    TARGETID = data[1];
-    SENDERID = data[2];
-    unsigned char CTLbyte = data[3];
-    TARGETID |= ((unsigned short)(CTLbyte) & 0x0C) << 6; //10 bit address (most significant 2 bits stored in bits(2,3) of CTL byte
-    SENDERID |= ((unsigned short)(CTLbyte) & 0x03) << 8; //10 bit address (most sifnigicant 2 bits stored in bits(0,1) of CTL byte
+    TARGETID = _spi->transfer(0);
+    SENDERID = _spi->transfer(0);
+    uint8_t CTLbyte = _spi->transfer(0);
+    TARGETID |= (uint16_t(CTLbyte) & 0x0C) << 6; //10 bit address (most significant 2 bits stored in bits(2,3) of CTL byte
+    SENDERID |= (uint16_t(CTLbyte) & 0x03) << 8; //10 bit address (most sifnigicant 2 bits stored in bits(0,1) of CTL byte
+    
     if(!(_spyMode || TARGETID == _address || TARGETID == RF69_BROADCAST_ADDR) // match this node's address, or broadcast address or anything in spy mode
        || PAYLOADLEN < 3) // address situation could receive packets that are malformed and don't fit this libraries extra fields
     {
+      // printf("PAYLOADLEN %i\n", PAYLOADLEN);
       PAYLOADLEN = 0;
-      //unselect();
+      unselect();
+      // printf("itt");
+      // printf("TArget %i\n", TARGETID);
+       // printf("SENDERID %i\n", SENDERID);
       receiveBegin();
       return;
     }
@@ -398,10 +403,11 @@ void RFM69::interruptHandler() {
     // printf("\n");
     // for (unsigned char i = 0; i < PAYLOADLEN; i++) printf("%c", data[i]);
     // printf("\n");
-    for (unsigned char i = 0; i < DATALEN; i++) DATA[i] = data[i+4];
+    for (uint8_t i = 0; i < DATALEN; i++) DATA[i] = _spi->transfer(0);
 
     DATA[DATALEN] = 0; // add null at end of string // add null at end of string
-    //unselect();
+    // printf(" %s", DATA, DATALEN);
+    unselect();
     setMode(RF69_MODE_RX);
   }
   RSSI = readRSSI();
@@ -414,6 +420,7 @@ ISR_PREFIX void RFM69::isr0() { _haveData = true;
         ready = true;
     }
     cv.notify_one();
+
     }
 
 // internal function
@@ -464,12 +471,15 @@ void RFM69::encrypt(const char* key) {
   uint8_t validKey = key != 0 && strlen(key)!=0;
   if (validKey)
   {
+  // printf(" strlen %i", strlen(key));
 #if defined(RF69_LISTENMODE_ENABLE)
     memcpy(_encryptKey, key, 16);
 #endif
-    unsigned char data = REG_AESKEY1 | 0x80;
-    wiringPiSPIDataRW(1, &data, 1);
-       wiringPiSPIDataRW(1, (unsigned char*)key, 16);
+    select();
+    _spi->transfer(REG_AESKEY1 | 0x80);
+    for (uint8_t i = 0; i < 16; i++)
+      _spi->transfer(key[i]);
+    unselect();
   }
   writeReg(REG_PACKETCONFIG2, (readReg(REG_PACKETCONFIG2) & 0xFE) | (validKey ? 1 : 0));
 }
@@ -490,18 +500,19 @@ int16_t RFM69::readRSSI(bool forceTrigger) {
 
 uint8_t RFM69::readReg(uint8_t addr)
 {
-  unsigned char data[2]={0};
-    data[0]=addr&0x7F;
-    wiringPiSPIDataRW(1, data, 2);
-    return data[1];
+  select();
+  _spi->transfer(addr & 0x7F);
+  uint8_t regval = _spi->transfer(0);
+  unselect();
+  return regval;
 }
 
 void RFM69::writeReg(uint8_t addr, uint8_t value)
 {
-  unsigned char data[2]={0};
-    data[0]=addr|0x80;
-    data[1]=value;
-    wiringPiSPIDataRW(1, data, 2);
+  select();
+  _spi->transfer(addr | 0x80);
+  _spi->transfer(value);
+  unselect();
 }
 
 // select the RFM69 transceiver (save SPI settings, set CS low)
@@ -516,22 +527,22 @@ void RFM69::select() {
  // _spi->beginTransaction(_settings);
 #else
   // set RFM69 SPI settings explicitly
-  _spi->setDataMode(0);
-  //_spi->setBitOrder(MSBFIRST);
+  _spi->setDataMode(0); // SPI_MODE0
+  _spi->setBitOrder(1); //msbfirst
   #if defined(__STM32F1__)
     _spi->setClockDivider(SPI_CLOCK_DIV8);
   #elif defined(__arm__)
-    //_spi->setClockDivider(SPI_CLOCK_DIV16);
+    _spi->setClockDivider(1); // SPI_CLOCK_DIV16
   #else
     _spi->setClockDivider(SPI_CLOCK_DIV2);
   #endif
 #endif
- // digitalWrite(_slaveSelectPin, LOW);
+ digitalWrite(_slaveSelectPin, LOW);
 }
 
 // unselect the RFM69 transceiver (set CS high, restore SPI settings)
 void RFM69::unselect() {
-  //digitalWrite(_slaveSelectPin, HIGH);
+  digitalWrite(_slaveSelectPin, HIGH);
 #ifdef SPI_HAS_TRANSACTION
   //_spi->endTransaction();
 #endif  
@@ -567,31 +578,40 @@ void RFM69::setHighPowerRegs(bool onOff) {
 
 // set the slave select (CS) pin 
 void RFM69::setCS(uint8_t newSPISlaveSelect) {
-  //_slaveSelectPin = newSPISlaveSelect;
- // digitalWrite(_slaveSelectPin, HIGH);
- // pinMode(_slaveSelectPin, OUTPUT);
+  _slaveSelectPin = newSPISlaveSelect;
+  digitalWrite(_slaveSelectPin, HIGH);
+  pinMode(_slaveSelectPin, OUTPUT);
+}
+
+// set the IRQ pin
+bool RFM69::setIrq(uint8_t newIRQPin) {
+  uint8_t _newInterruptNum = digitalPinToInterrupt(newIRQPin);
+  if (_newInterruptNum == NOT_AN_INTERRUPT) return false;
+#ifdef RF69_ATTACHINTERRUPT_TAKES_PIN_NUMBER
+  _newInterruptNum = newIRQPin;
+#endif
+
+  // disconnect from existing IRQ pin
+  //detachInterrupt( _interruptNum );
+
+  _interruptNum = _newInterruptNum;
+  wiringPiISR(_interruptNum, INT_EDGE_RISING, RFM69::isr0);
+
+  return true;
 }
 
 //for debugging
 #define REGISTER_DETAIL 0
-#if REGISTER_DETAIL
 // SERIAL PRINT
 // replace Serial.print("string") with SerialPrint("string")
-#define SerialPrint(x) SerialPrint_P(PSTR(x))
-void SerialWrite ( uint8_t c ) {
-    Serial.write ( c );
-}
+#define SerialPrint(x) printf("%s", x)
 
-void SerialPrint_P(PGM_P str, void (*f)(uint8_t) = SerialWrite ) {
-  for (uint8_t c; (c = pgm_read_byte(str)); str++) (*f)(c);
-}
-#endif
 
 void RFM69::readAllRegs()
 {
   uint8_t regVal;
 
-#if REGISTER_DETAIL 
+
   int capVal;
 
   //... State Variables for intelligent decoding
@@ -599,13 +619,14 @@ void RFM69::readAllRegs()
   int bitRate = 0;
   int freqDev = 0;
   long freqCenter = 0;
-#endif
+
   
   Serial.println("Address - HEX - BIN");
   for (uint8_t regAddr = 1; regAddr <= 0x4F; regAddr++)
   {
     select();
-    regVal = readReg(regAddr);
+    _spi->transfer(regAddr & 0x7F); // send address + r/w bit
+    regVal = _spi->transfer(0);
     unselect();
 
     Serial.print(regAddr, HEX);
@@ -614,7 +635,7 @@ void RFM69::readAllRegs()
     Serial.print(" - ");
     Serial.println(regVal,BIN);
 
-#if REGISTER_DETAIL 
+
     switch ( regAddr ) 
     {
         case 0x1 : {
@@ -641,13 +662,13 @@ void RFM69::readAllRegs()
             capVal = (regVal >> 2) & 0x7;
             if ( capVal == 0b000 ) {
                 SerialPrint ( "000 -> Sleep mode (SLEEP)\n" );
-            } else if ( capVal = 0b001 ) {
+            } else if ( capVal == 0b001 ) {
                 SerialPrint ( "001 -> Standby mode (STDBY)\n" );
-            } else if ( capVal = 0b010 ) {
+            } else if ( capVal == 0b010 ) {
                 SerialPrint ( "010 -> Frequency Synthesizer mode (FS)\n" );
-            } else if ( capVal = 0b011 ) {
+            } else if ( capVal == 0b011 ) {
                 SerialPrint ( "011 -> Transmitter mode (TX)\n" );
-            } else if ( capVal = 0b100 ) {
+            } else if ( capVal == 0b100 ) {
                 SerialPrint ( "100 -> Receiver Mode (RX)\n" );
             } else {
                 Serial.print( capVal, BIN );
@@ -796,7 +817,7 @@ void RFM69::readAllRegs()
         }
 
         case 0xd : {
-            byte val;
+            uint8_t val;
             SerialPrint ( "Resolution of Listen mode Idle time (calibrated RC osc):\nListenResolIdle : " );
             val = regVal >> 6;
             if ( val == 0b00 ) {
@@ -848,7 +869,7 @@ void RFM69::readAllRegs()
         default : {
         }
     }
-#endif
+
   }
   unselect();
 }

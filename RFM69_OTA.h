@@ -46,7 +46,7 @@
   #define LED           13 // catch all others (UNO, pro mini etc)
 #endif
 
-//#define SHIFTCHANNEL 1000000 //amount to shift frequency of HEX transmission to keep original channel free of the HEX transmission traffic
+#define SHIFTCHANNEL 1000000 //amount to shift frequency of HEX transmission to keep original channel free of the HEX transmission traffic
 
 #ifndef DEFAULT_TIMEOUT
   #define DEFAULT_TIMEOUT 3000
@@ -83,7 +83,7 @@ uint8_t CheckForSerialHEX(const char* input, uint8_t inputLen, RFM69& radio, uin
 uint8_t HandleSerialHandshake(RFM69& radio, uint16_t targetID, uint8_t isEOF, uint16_t TIMEOUT=DEFAULT_TIMEOUT, uint16_t ACKTIMEOUT=ACK_TIMEOUT, uint8_t DEBUG=false);
 uint8_t HandleSerialHEXData(RFM69& radio, const char* image, uint16_t targetID, uint16_t TIMEOUT=DEFAULT_TIMEOUT, uint16_t ACKTIMEOUT=ACK_TIMEOUT, uint8_t DEBUG=false, uint8_t retries = 5);
 #ifdef SHIFTCHANNEL
-uint8_t HandleSerialHEXDataWrapper(RFM69& radio, uint16_t targetID, uint16_t TIMEOUT=DEFAULT_TIMEOUT, uint16_t ACKTIMEOUT=ACK_TIMEOUT, uint8_t DEBUG=false);
+uint8_t HandleSerialHEXDataWrapper(RFM69& radio, const char* image, uint16_t targetID, uint16_t TIMEOUT=DEFAULT_TIMEOUT, uint16_t ACKTIMEOUT=ACK_TIMEOUT, uint8_t DEBUG=false);
 #endif
 uint8_t waitForAck(RFM69& radio, uint16_t fromNodeID, uint16_t ACKTIMEOUT=ACK_TIMEOUT);
 

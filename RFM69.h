@@ -32,6 +32,7 @@
 #include <stdint.h>
 #include <wiringPiSPI.h>
 #include <wiringPi.h>
+#include <pigpio.h>
 
 //////////////////////////////////////////////////////////////////////
 //Platform and digitalPinToInterrupt definitions credit to RadioHead//
@@ -132,7 +133,7 @@
   #define RF69_IRQ_PIN          2
 #elif defined(__AVR_ATmega32U4__)
   #define RF69_IRQ_PIN          7
-#elif defined(__STM32F1__)
+#elif defined(__STM32F1__) || defined(STM32F1)
   #define RF69_IRQ_PIN          PA3
 #elif defined(MOTEINO_M0)
   #define RF69_IRQ_PIN          9
@@ -196,10 +197,18 @@
 
 class SPIClass {
   public:
-    static void begin(uint8_t SCK, uint8_t MISO, uint8_t MOSI, uint8_t CS) {};
-    static void begin() {};
-    static unsigned char transfer(unsigned char c) {wiringPiSPIDataRW(1, &c, 1); return c; };
-    static void setDataMode(uint8_t m) {};
+    int handler;
+    void begin(uint8_t SCK, uint8_t MISO, uint8_t MOSI, uint8_t CS) {};
+    void begin() {
+      handler = spiOpen(1, 4000000, 0);
+      if (handler < 0) { printf("error while opening spi %i", handler); }
+    };
+    char transfer(char buf) { spiXfer(handler, &buf, &buf, 1); return buf; };
+    char read(char buf) { if(spiRead(handler, &buf, 1) > 0) {printf("spi read error");} return buf; };
+    void write(char buf) { if(spiWrite(handler, &buf, 1) > 0) {printf("spi write error");} };
+    void setDataMode(uint8_t m) {};
+    void setBitOrder(uint8_t m) {};
+    void setClockDivider(uint8_t m) {};
 };
 
 
@@ -248,6 +257,7 @@ class RFM69 {
     void setFrequency(uint32_t freqHz);
     void encrypt(const char* key);
     void setCS(uint8_t newSPISlaveSelect);
+    bool setIrq(uint8_t newIRQPin);
     int16_t readRSSI(bool forceTrigger=false); // *current* signal strength indicator; e.g. < -90dBm says the frequency channel is free + ready to transmit
     void spyMode(bool onOff=true);
     //void promiscuous(bool onOff=true); //replaced with spyMode()

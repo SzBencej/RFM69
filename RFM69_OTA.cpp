@@ -297,13 +297,14 @@ uint8_t CheckForSerialHEX(const char* input, uint8_t inputLen, RFM69& radio, uin
     {
       if (radio.DATALEN >= 7 && radio.DATA[4] == 'N')
       {
+        Serial.print("HandleSerialHandshake true but incorrect message: ");
         Serial.println((char*)radio.DATA); //signal serial handshake fail/error and return
         return false;
       }
       
       Serial.println(F("\nFLX?OK")); //signal serial handshake back to host script
 #ifdef SHIFTCHANNEL
-      if (HandleSerialHEXDataWrapper(radio, targetID, TIMEOUT, ACKTIMEOUT, DEBUG))
+      if (HandleSerialHEXDataWrapper(radio, input, targetID, TIMEOUT, ACKTIMEOUT, DEBUG))
 #else
       if (HandleSerialHEXData(radio, input, targetID, TIMEOUT, ACKTIMEOUT, DEBUG, retries))
 #endif
@@ -330,9 +331,15 @@ uint8_t HandleSerialHandshake(RFM69& radio, uint16_t targetID, uint8_t isEOF, ui
 
   while (millis()-now<TIMEOUT)
   {
-    if (radio.sendWithRetry(targetID, isEOF ? "FLX?EOF" : "FLX?", isEOF?7:4, 2,ACKTIMEOUT))
-      if (radio.DATALEN >= 6 && radio.DATA[0]=='F' && radio.DATA[1]=='L' && radio.DATA[2]=='X' && radio.DATA[3]=='?')
+    if (radio.sendWithRetry(targetID, isEOF ? "FLX?EOF" : "FLX?", isEOF?7:4, 2, ACKTIMEOUT)) {
+      if (DEBUG) Serial.println(F("HandleSerialHandshake send success"));
+      if (radio.DATALEN >= 6 && radio.DATA[0]=='F' && radio.DATA[1]=='L' && radio.DATA[2]=='X' && radio.DATA[3]=='?') {
+        if (DEBUG) Serial.println(F("HandleSerialHandshake msg ok"));
         return true;
+      }
+    } else {
+        if (DEBUG) Serial.println(F("HandleSerialHandshake send failed"));
+    }
   }
 
   if (DEBUG) Serial.println(F("Handshake fail"));
@@ -344,9 +351,9 @@ uint8_t HandleSerialHandshake(RFM69& radio, uint16_t targetID, uint8_t isEOF, ui
 // HandleSerialHEXDataWrapper() - wrapper for HandleSerialHEXData(), also shifts the channel if SHIFTCHANNEL is defined
 //===================================================================================================================
 #ifdef SHIFTCHANNEL
-uint8_t HandleSerialHEXDataWrapper(RFM69& radio, uint16_t targetID, uint16_t TIMEOUT, uint16_t ACKTIMEOUT, uint8_t DEBUG) {
+uint8_t HandleSerialHEXDataWrapper(RFM69& radio, const char* image, uint16_t targetID, uint16_t TIMEOUT, uint16_t ACKTIMEOUT, uint8_t DEBUG) {
   radio.setFrequency(radio.getFrequency() + SHIFTCHANNEL); //shift center freq by SHIFTCHANNEL amount
-  uint8_t result = HandleSerialHEXData(radio, targetID, TIMEOUT, ACKTIMEOUT, DEBUG);
+  uint8_t result = HandleSerialHEXData(radio, image, targetID, TIMEOUT, ACKTIMEOUT, DEBUG);
   radio.setFrequency(radio.getFrequency() - SHIFTCHANNEL); //shift center freq by SHIFTCHANNEL amount
   return result;
 }
@@ -378,6 +385,7 @@ uint8_t HandleSerialHEXData(RFM69& radio, const char* image, uint16_t targetID, 
   while(1) {
     char* input = const_cast<char*>(tokens[seq].c_str());
     inputLen = strlen(input);
+    printf("seq %i, len %i, line %s\n", seq, inputLen, input);
     if (inputLen == 0) goto timeoutcheck;
     tmp = 0;
     
@@ -401,6 +409,7 @@ uint8_t HandleSerialHEXData(RFM69& radio, const char* image, uint16_t targetID, 
           }
           //Serial.print(F("input[index] = "));Serial.print(F("["));Serial.print(index);Serial.print(F("]="));Serial.println(input[index]);
           if (input[++index] != ':') return false;
+          printf("refresh now\n");
           now = millis(); //got good packet
           index++;
           uint8_t hexDataLen = validateHEXData(input+index, inputLen-index);
@@ -417,19 +426,20 @@ uint8_t HandleSerialHEXData(RFM69& radio, const char* image, uint16_t targetID, 
               {
                 sprintf((char*)sendBuf, "FLX:%u:OK",seq);
                 Serial.println((char*)sendBuf); //response to host
+                now = millis(); //got good packet response
+                printf("refresh now send\n");
                 seq++;
-              }
-              else if (retries > 0) {
+/*               } else if (retries > 0) {
                 retries--;
                 printf("No ack for seq %i. Remaining retries: %i", seq, retries);
-                continue;
+                continue; */
               } else {
                   return false;
               }
             }
           }
           //else Serial.print(F("FLX:INV"));
-          else { Serial.print(F("FLX:INV:"));Serial.println(hexDataLen); }
+          else { Serial.print(F("FLX:INV:"));Serial.println(hexDataLen); now = 0; }
         }
         if (inputLen==7 && input[3]=='?' && input[4]=='E' && input[5]=='O' && input[6]=='F')
         {
@@ -440,7 +450,9 @@ uint8_t HandleSerialHEXData(RFM69& radio, const char* image, uint16_t targetID, 
     }
     
     //abort FLASH sequence if no valid packet received for a long time
+    Serial.print(F("bef timeoutcheck"));
 timeoutcheck:
+    printf("aft timeoutcheck %i %i", millis(), now);
     if (millis()-now > TIMEOUT)
     {
       Serial.print(F("Timeout getting FLASH image from SERIAL, aborting.."));
