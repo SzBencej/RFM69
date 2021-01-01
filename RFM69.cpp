@@ -114,14 +114,14 @@ bool RFM69::initialize(uint8_t freqBand, uint16_t nodeID, uint8_t networkID)
   };
   
   wiringPiSetupPhys();
-  //int x = gpioInitialise();
-  //printf("gpioinit %i", x);
+  int x = gpioInitialise();
+  printf("gpioinit %i\n", x);
   pinMode(_interruptPin, INPUT);
   pinMode(RSTPIN, OUTPUT);
   digitalWrite(RSTPIN, HIGH);
-  delay(300);
+  delay(100);
   digitalWrite(RSTPIN, LOW);
-  delay(300);
+  delay(100);
 
   //pinMode(_slaveSelectPin, OUTPUT);
   //digitalWrite(_slaveSelectPin, HIGH);
@@ -345,15 +345,15 @@ void RFM69::sendFrame(uint16_t toAddress, const void* buffer, uint8_t bufferSize
   if (_address > 0xFF) CTLbyte |= (_address & 0x300) >> 8;   //assign last 2 bits of address if > 255
 
   // write to FIFO
-    unsigned char data[bufferSize+5];
+    char data[bufferSize+5];
     data[0] = REG_FIFO | 0x80;
     data[1] = bufferSize + 3;
-    data[2] = (unsigned char)toAddress;
-    data[3] = (unsigned char)_address;
+    data[2] = (char)toAddress;
+    data[3] = (char)_address;
     data[4] = CTLbyte;
-    for (unsigned char i = 0; i < bufferSize; i++)
+    for (char i = 0; i < bufferSize; i++)
     {
-        data[5+i] = ((unsigned char*) buffer)[i];
+        data[5+i] = ((char*) buffer)[i];
     }
     _spi->transfer(data, bufferSize+5);
 
@@ -377,12 +377,12 @@ void RFM69::interruptHandler() {
     select();
     PAYLOADLEN = readReg(REG_FIFO & 0x7F);
     PAYLOADLEN = PAYLOADLEN > 66 ? 66 : PAYLOADLEN; // precaution
-    unsigned char data[PAYLOADLEN+1] = {0};
+    char data[PAYLOADLEN+1] = {0};
     data[0]=REG_FIFO & 0x7F;
     _spi->transfer(data, PAYLOADLEN+1);
     TARGETID = data[1];
     SENDERID = data[2];
-    unsigned char CTLbyte = data[3];
+    char CTLbyte = data[3];
     TARGETID |= ((unsigned short)(CTLbyte) & 0x0C) << 6; //10 bit address (most significant 2 bits stored in bits(2,3) of CTL byte
     SENDERID |= ((unsigned short)(CTLbyte) & 0x03) << 8; //10 bit address (most sifnigicant 2 bits stored in bits(0,1) of CTL byte
     
@@ -406,7 +406,7 @@ void RFM69::interruptHandler() {
     // printf("\n");
     // for (unsigned char i = 0; i < PAYLOADLEN; i++) printf("%c", data[i]);
     // printf("\n");
-    for (unsigned char i = 0; i < DATALEN; i++) DATA[i] = data[i+4];
+    for (char i = 0; i < DATALEN; i++) DATA[i] = data[i+4];
 
     DATA[DATALEN] = 0; // add null at end of string // add null at end of string
     // printf(" %s", DATA, DATALEN);
@@ -479,9 +479,9 @@ void RFM69::encrypt(const char* key) {
     memcpy(_encryptKey, key, 16);
 #endif
     select();
-    unsigned char data = REG_AESKEY1 | 0x80;
+    char data = REG_AESKEY1 | 0x80;
     _spi->transfer(&data, 1);
-    _spi->transfer((unsigned char*)key, 16);
+    _spi->transfer((char*)key, 16);
     unselect();
   }
   writeReg(REG_PACKETCONFIG2, (readReg(REG_PACKETCONFIG2) & 0xFE) | (validKey ? 1 : 0));
@@ -503,7 +503,7 @@ int16_t RFM69::readRSSI(bool forceTrigger) {
 
 uint8_t RFM69::readReg(uint8_t addr)
 {
-  unsigned char data[2]={0,0};
+  char data[2]={0,0};
   data[0]=addr&0x7F;
   _spi->transfer(data, 2);
   return data[1];
@@ -511,7 +511,7 @@ uint8_t RFM69::readReg(uint8_t addr)
 
 void RFM69::writeReg(uint8_t addr, uint8_t value)
 {
-  unsigned char data[2]={0,0};
+  char data[2]={0,0};
   data[0]=addr|0x80;
   data[1]=value;
   _spi->transfer(data, 2);
