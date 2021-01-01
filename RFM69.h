@@ -204,8 +204,19 @@ class SPIClass {
       if (handler < 0) { printf("error while opening spi %i", handler); }
     };
     char transfer(char buf) { spiXfer(handler, &buf, &buf, 1); return buf; };
-    char read(char buf) { if(spiRead(handler, &buf, 1) > 0) {printf("spi read error");} return buf; };
-    void write(char buf) { if(spiWrite(handler, &buf, 1) > 0) {printf("spi write error");} };
+    char read(char buf) {
+        int ret;
+        if(ret = spiRead(handler, &buf, 1) < 0) {
+            printf("spi read error %i\n", ret);
+        }
+        return buf;
+    };
+    void write(char buf) {
+        int ret;
+        if(ret = spiWrite(handler, &buf, 1) < 0) {
+            printf("spi write error %i\n", ret);
+        }
+    };
     void setDataMode(uint8_t m) {};
     void setBitOrder(uint8_t m) {};
     void setClockDivider(uint8_t m) {};

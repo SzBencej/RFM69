@@ -346,14 +346,14 @@ void RFM69::sendFrame(uint16_t toAddress, const void* buffer, uint8_t bufferSize
 
   // write to FIFO
   select();
-  _spi->transfer(REG_FIFO | 0x80);
-  _spi->transfer(bufferSize + 3);
-  _spi->transfer((uint8_t)toAddress);
-  _spi->transfer((uint8_t)_address);
-  _spi->transfer(CTLbyte);
+  _spi->write(REG_FIFO | 0x80);
+  _spi->write(bufferSize + 3);
+  _spi->write((uint8_t)toAddress);
+  _spi->write((uint8_t)_address);
+  _spi->write(CTLbyte);
 
   for (uint8_t i = 0; i < bufferSize; i++)
-    _spi->transfer(((uint8_t*) buffer)[i]);
+    _spi->write(((uint8_t*) buffer)[i]);
   unselect();
 
 
@@ -374,12 +374,12 @@ void RFM69::interruptHandler() {
       // printf("interrupt");
     setMode(RF69_MODE_STANDBY);
     select();
-    _spi->transfer(REG_FIFO & 0x7F);
-    PAYLOADLEN = _spi->transfer(0);
+    _spi->write(REG_FIFO & 0x7F);
+    PAYLOADLEN = _spi->read(0);
     PAYLOADLEN = PAYLOADLEN > 66 ? 66 : PAYLOADLEN; // precaution
-    TARGETID = _spi->transfer(0);
-    SENDERID = _spi->transfer(0);
-    uint8_t CTLbyte = _spi->transfer(0);
+    TARGETID = _spi->read(0);
+    SENDERID = _spi->read(0);
+    uint8_t CTLbyte = _spi->read(0);
     TARGETID |= (uint16_t(CTLbyte) & 0x0C) << 6; //10 bit address (most significant 2 bits stored in bits(2,3) of CTL byte
     SENDERID |= (uint16_t(CTLbyte) & 0x03) << 8; //10 bit address (most sifnigicant 2 bits stored in bits(0,1) of CTL byte
     
@@ -403,7 +403,7 @@ void RFM69::interruptHandler() {
     // printf("\n");
     // for (unsigned char i = 0; i < PAYLOADLEN; i++) printf("%c", data[i]);
     // printf("\n");
-    for (uint8_t i = 0; i < DATALEN; i++) DATA[i] = _spi->transfer(0);
+    for (uint8_t i = 0; i < DATALEN; i++) DATA[i] = _spi->read(0);
 
     DATA[DATALEN] = 0; // add null at end of string // add null at end of string
     // printf(" %s", DATA, DATALEN);
@@ -476,9 +476,9 @@ void RFM69::encrypt(const char* key) {
     memcpy(_encryptKey, key, 16);
 #endif
     select();
-    _spi->transfer(REG_AESKEY1 | 0x80);
+    _spi->write(REG_AESKEY1 | 0x80);
     for (uint8_t i = 0; i < 16; i++)
-      _spi->transfer(key[i]);
+      _spi->write(key[i]);
     unselect();
   }
   writeReg(REG_PACKETCONFIG2, (readReg(REG_PACKETCONFIG2) & 0xFE) | (validKey ? 1 : 0));
@@ -501,8 +501,8 @@ int16_t RFM69::readRSSI(bool forceTrigger) {
 uint8_t RFM69::readReg(uint8_t addr)
 {
   select();
-  _spi->transfer(addr & 0x7F);
-  uint8_t regval = _spi->transfer(0);
+  _spi->write(addr & 0x7F);
+  uint8_t regval = _spi->read(0);
   unselect();
   return regval;
 }
@@ -510,8 +510,8 @@ uint8_t RFM69::readReg(uint8_t addr)
 void RFM69::writeReg(uint8_t addr, uint8_t value)
 {
   select();
-  _spi->transfer(addr | 0x80);
-  _spi->transfer(value);
+  _spi->write(addr | 0x80);
+  _spi->write(value);
   unselect();
 }
 
@@ -625,8 +625,8 @@ void RFM69::readAllRegs()
   for (uint8_t regAddr = 1; regAddr <= 0x4F; regAddr++)
   {
     select();
-    _spi->transfer(regAddr & 0x7F); // send address + r/w bit
-    regVal = _spi->transfer(0);
+    _spi->write(regAddr & 0x7F); // send address + r/w bit
+    regVal = _spi->read(0);
     unselect();
 
     Serial.print(regAddr, HEX);
