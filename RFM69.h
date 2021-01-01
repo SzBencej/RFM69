@@ -32,7 +32,7 @@
 #include <stdint.h>
 #include <wiringPiSPI.h>
 #include <wiringPi.h>
-#include <pigpio.h>
+#include <pigpiod_if2.h>
 
 //////////////////////////////////////////////////////////////////////
 //Platform and digitalPinToInterrupt definitions credit to RadioHead//
@@ -198,9 +198,16 @@
 class SPIClass {
   public:
     int handler;
+    int pi;
     void begin(uint8_t SCK, uint8_t MISO, uint8_t MOSI, uint8_t CS) {};
     void begin() {
-      handler =  handler = spiOpen(1, 4000000, 0);
+       pi = pigpio_start(NULL, NULL);
+        if (pi < 0)
+        {
+            printf("Failed: pigpio_start!\n");
+            printf("Explanation: %s.\n", pigpio_error(pi));
+        }
+      handler =  handler = spi_open(pi, 1, 4000000, 0);
       if (handler < 0) { printf("error while opening spi %i", handler); }
     };
     char transfer(char buf) {
@@ -208,7 +215,7 @@ class SPIClass {
     };
     char* transfer(char* buf, int len) {
         int ret;
-        if((ret = spiXfer(handler, buf, buf, len)) < 0) {
+        if((ret = spi_xfer(pi, handler, buf, buf, len)) < 0) {
             printf("transfer failed %i", ret);
         }
         return buf;

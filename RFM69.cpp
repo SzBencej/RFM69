@@ -114,8 +114,8 @@ bool RFM69::initialize(uint8_t freqBand, uint16_t nodeID, uint8_t networkID)
   };
   
   wiringPiSetupPhys();
-  int x = gpioInitialise();
-  printf("gpioinit %i\n", x);
+  //int x = gpioInitialise();
+  //printf("gpioinit %i\n", x);
   pinMode(_interruptPin, INPUT);
   pinMode(RSTPIN, OUTPUT);
   digitalWrite(RSTPIN, HIGH);
