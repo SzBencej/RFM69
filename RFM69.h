@@ -32,7 +32,7 @@
 #include <stdint.h>
 #include <wiringPiSPI.h>
 #include <wiringPi.h>
-#include <pigpio.h>
+//#include <pigpio.h>
 
 //////////////////////////////////////////////////////////////////////
 //Platform and digitalPinToInterrupt definitions credit to RadioHead//
@@ -200,22 +200,35 @@ class SPIClass {
     int handler;
     void begin(uint8_t SCK, uint8_t MISO, uint8_t MOSI, uint8_t CS) {};
     void begin() {
-      handler = spiOpen(1, 4000000, 0);
+      handler = wiringPiSPISetup(1, 4000000);
       if (handler < 0) { printf("error while opening spi %i", handler); }
     };
-    char transfer(char buf) { spiXfer(handler, &buf, &buf, 1); return buf; };
-    char read(char buf) {
+    unsigned char transfer(unsigned char buf) {
         int ret;
-        if(ret = spiRead(handler, &buf, 1) < 0) {
-            printf("spi read error %i\n", ret);
+        if((ret = wiringPiSPIDataRW(1, &buf, 1)) < 0) {
+            printf("transfer failed %i", ret);
         }
-        return buf;
+        return buf; };
+    unsigned char* transfer(unsigned char* buf, int len) {
+        int ret;
+        if((ret = wiringPiSPIDataRW(1, buf, len)) < 0) {
+            printf("transfer failed %i", ret);
+        }
+        return buf; };
+    unsigned char read(char buf) {
+        // int ret;
+        // if(ret = spiRead(handler, &buf, 1) < 0) {
+            // printf("spi read error %i\n", ret);
+        // }
+        //return buf;
+        return transfer(buf);
     };
     void write(char buf) {
-        int ret;
-        if(ret = spiWrite(handler, &buf, 1) < 0) {
-            printf("spi write error %i\n", ret);
-        }
+        // int ret;
+        // if(ret = spiWrite(handler, &buf, 1) < 0) {
+            // printf("spi write error %i\n", ret);
+        // }
+        transfer(buf);
     };
     void setDataMode(uint8_t m) {};
     void setBitOrder(uint8_t m) {};

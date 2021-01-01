@@ -114,14 +114,14 @@ bool RFM69::initialize(uint8_t freqBand, uint16_t nodeID, uint8_t networkID)
   };
   
   wiringPiSetupPhys();
-  int x = gpioInitialise();
-  printf("gpioinit %i", x);
+  //int x = gpioInitialise();
+  //printf("gpioinit %i", x);
   pinMode(_interruptPin, INPUT);
   pinMode(RSTPIN, OUTPUT);
   digitalWrite(RSTPIN, HIGH);
-  delay(100);
+  delay(300);
   digitalWrite(RSTPIN, LOW);
-  delay(100);
+  delay(300);
 
   pinMode(_slaveSelectPin, OUTPUT);
   digitalWrite(_slaveSelectPin, HIGH);
@@ -158,7 +158,7 @@ bool RFM69::initialize(uint8_t freqBand, uint16_t nodeID, uint8_t networkID)
   if (millis()-start >= timeout)
     return false;
   wiringPiISR(_interruptPin, INT_EDGE_RISING, RFM69::isr0);
-printf("gpioinit %i", x);
+
   _address = nodeID;
 #if defined(RF69_LISTENMODE_ENABLE)
   selfPointer = this;
@@ -500,19 +500,18 @@ int16_t RFM69::readRSSI(bool forceTrigger) {
 
 uint8_t RFM69::readReg(uint8_t addr)
 {
-  select();
-  _spi->write(addr & 0x7F);
-  uint8_t regval = _spi->read(0);
-  unselect();
-  return regval;
+  unsigned char data[2]={0};
+  data[0]=addr&0x7F;
+  _spi->transfer(data, 2);
+  return data[1];
 }
 
 void RFM69::writeReg(uint8_t addr, uint8_t value)
 {
-  select();
-  _spi->write(addr | 0x80);
-  _spi->write(value);
-  unselect();
+  unsigned char data[2]={0};
+  data[0]=addr|0x80;
+  data[1]=value;
+  _spi->transfer(data, 2);
 }
 
 // select the RFM69 transceiver (save SPI settings, set CS low)
