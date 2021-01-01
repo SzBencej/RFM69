@@ -200,15 +200,11 @@ class SPIClass {
     int handler;
     void begin(uint8_t SCK, uint8_t MISO, uint8_t MOSI, uint8_t CS) {};
     void begin() {
-      handler = wiringPiSPISetup(1, 4000000);
+      handler = wiringPiSPISetupMode(1, 4000000, 0);
       if (handler < 0) { printf("error while opening spi %i", handler); }
     };
     unsigned char transfer(unsigned char buf) {
-        int ret;
-        if((ret = wiringPiSPIDataRW(1, &buf, 1)) < 0) {
-            printf("transfer failed %i", ret);
-        }
-        return buf; };
+        return *transfer(&buf, 1); };
     unsigned char* transfer(unsigned char* buf, int len) {
         int ret;
         if((ret = wiringPiSPIDataRW(1, buf, len)) < 0) {
